@@ -1,0 +1,3 @@
+# Sitio estático: no hay build, se publica la raíz del repo
+[build]
+  publish = "."
