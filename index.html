@@ -1299,9 +1299,12 @@ function mergeList(a,b){
     if(!m[it.id]){m[it.id]=it;ord.push(it.id);return}
     var p=m[it.id];
     if((it.u||0)>=(p.u||0)){
-      /* Un backend sin las columnas del civil devuelve items sin esos campos:
-         no dejamos que pisen lo marcado en este teléfono. */
-      if(it.civil===undefined&&p.civil!==undefined){it.civil=p.civil;it.civilConf=p.civilConf}
+      /* Un backend sin las columnas del civil devuelve el mismo item (misma
+         versión _u) sin esos campos, o con false recién migrado: si la versión
+         es la misma, lo marcado en este teléfono manda. Un cambio real siempre
+         llega con un _u más nuevo. */
+      var mismaVersion=(it.u||0)===(p.u||0);
+      if(p.civil!==undefined&&(it.civil===undefined||mismaVersion)){it.civil=p.civil;it.civilConf=p.civilConf}
       m[it.id]=it;
     }
   }
@@ -2372,14 +2375,22 @@ function openCivilPick(){
   var arr=list('invitados').slice().sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es')});
   sheet('¿Quiénes van al civil?',
     '<p style="margin:0 0 14px;color:var(--ink80)">Tildá a los que están invitados al civil. Se guarda al toque, sin pasos extra.</p>'+
-    (arr.length?'<div class="list">'+arr.map(function(g){
-      return '<div class="item">'+
+    (arr.length?'<div class="search" style="margin-bottom:12px">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'+
+      '<input class="inp" id="qCivil" placeholder="Buscar invitado" enterkeyhint="search"></div>':'')+
+    (arr.length?'<div class="list" id="listCivilPick">'+arr.map(function(g){
+      return '<div class="item" data-q="'+esc((g.nombre+' '+(g.grupo||'')).toLowerCase())+'">'+
         '<button class="check '+(g.civil?'on':'')+'" data-cpick="'+g.id+'" aria-pressed="'+(g.civil?'true':'false')+'" aria-label="Invitado al civil">'+TICK+'</button>'+
         '<div class="main"><span class="nm">'+esc(g.nombre)+'</span>'+
         '<span class="sb"><span class="tag '+(g.origen==='Ro'?'ro':'mi')+'">'+(g.origen==='Ro'?'RO':'MILI')+'</span> '+esc(g.grupo||'')+'</span></div>'+
         '</div>';
     }).join('')+'</div>':emptyBox('Sin invitados','Primero agregá invitados a la fiesta.')),
     '<button class="btn block" data-close>Listo</button>');
+  var q=document.getElementById('qCivil');
+  if(q)q.oninput=function(){
+    var s=q.value.trim().toLowerCase();
+    document.querySelectorAll('#listCivilPick .item').forEach(function(r){r.style.display=(!!s&&r.dataset.q.indexOf(s)<0)?'none':''});
+  };
 }
 function addChk(sec,limite){
   var k={id:uid('k'),seccion:sec||fChk,tarea:'',hecho:false,resp:'',limite:limite||'',nota:'',links:'',pagoId:'',u:now(),d:false};
