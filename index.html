@@ -574,6 +574,10 @@ nav.bar{background:rgba(246,239,228,.94);border-top:1px solid rgba(31,58,99,.09)
   <div id="splashPill" style="position:absolute;right:16px;bottom:max(24px,env(safe-area-inset-bottom));animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .4s both, splashSway 4.5s ease-in-out 1.3s infinite;transform-origin:70% 100%;background:#fbf8f8;border-radius:999px;padding:14px 22px;box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26)">
     <svg viewBox="0 0 812.67 167.97" style="display:block;width:min(38vw,160px);height:auto;color:#4e1226"><use href="#logoText" width="812.67" height="167.97"/></svg>
   </div>
+  <div id="splashCd" style="position:absolute;left:16px;bottom:max(24px,env(safe-area-inset-bottom));animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .55s both;background:#fbf8f8;border-radius:999px;padding:17px 20px;box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26);display:flex;align-items:baseline;gap:7px;color:#4e1226;white-space:nowrap">
+    <b id="spN" style="font-family:var(--display);font-weight:600;font-size:30px;line-height:1;letter-spacing:.01em">—</b>
+    <span id="spL" style="font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;opacity:.72">días</span>
+  </div>
 </div>
 <script>
 (function(){
@@ -588,8 +592,7 @@ nav.bar{background:rgba(246,239,228,.94);border-top:1px solid rgba(31,58,99,.09)
     var capa=anduvo?v:fall;
     capa.style.transformOrigin='50% 42%';
     capa.style.animation='splashZoom 1.1s cubic-bezier(.55,0,.30,1) forwards';
-    var pill=sp.querySelector('#splashPill');
-    if(pill){pill.style.transition='opacity .4s ease';pill.style.opacity='0'}
+    sp.querySelectorAll('#splashPill,#splashCd').forEach(function(pill){pill.style.transition='opacity .4s ease';pill.style.opacity='0'});
     sp.style.transition='opacity .9s ease .35s';
     setTimeout(function(){sp.style.opacity='0'},60);
     setTimeout(function(){sp.remove()},1400);
@@ -1487,10 +1490,17 @@ var TICK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-line
 function tick(){
   var ms=FECHA_BODA-new Date();
   var n=document.getElementById('cdN'),l=document.getElementById('cdL');
-  if(ms<0){n.textContent='¡Hoy!';l.textContent='que lo disfruten';return}
-  var d=Math.floor(ms/86400000);
-  if(d===0){n.textContent=Math.floor(ms/3600000);l.textContent='horas para el gran día'}
-  else{n.textContent=fN.format(d);l.textContent=(d===1?'día':'días')+' para el gran día'}
+  var sn=document.getElementById('spN'),sl=document.getElementById('spL');
+  var num,lab,corto;
+  if(ms<0){num='¡Hoy!';lab='que lo disfruten';corto=''}
+  else{
+    var d=Math.floor(ms/86400000);
+    if(d===0){num=Math.floor(ms/3600000);lab='horas para el gran día';corto='horas'}
+    else{num=fN.format(d);lab=(d===1?'día':'días')+' para el gran día';corto=d===1?'día':'días'}
+  }
+  n.textContent=num;l.textContent=lab;
+  /* El splash se saca del DOM al terminar la intro */
+  if(sn){sn.textContent=num;sl.textContent=corto}
 }
 
 function renderInicio(){
