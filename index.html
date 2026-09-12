@@ -766,6 +766,12 @@ nav.bar{background:rgba(246,239,228,.94);border-top:1px solid rgba(31,58,99,.09)
 
 <!-- ══════════ INVITADOS ══════════ -->
 <section class="screen" id="s-invitados">
+  <div class="seg" id="segInvView" style="margin-bottom:16px">
+    <button data-iv="fiesta" class="on">Fiesta</button>
+    <button data-iv="civil">Civil</button>
+  </div>
+
+  <div id="invFiesta">
   <div class="grid2" style="margin-bottom:16px">
     <div class="tile"><div class="v" id="iTot">—</div><div class="l">Invitados</div><div class="s" id="iSub">—</div></div>
     <div class="tile gold"><div class="v" id="iEnv">—</div><div class="l">Save the date</div><div class="s" id="iEnvSub">—</div>
@@ -785,6 +791,19 @@ nav.bar{background:rgba(246,239,228,.94);border-top:1px solid rgba(31,58,99,.09)
   <div class="chips" id="grupoChips" style="margin-bottom:14px"></div>
   <div class="legend" id="invLegend"></div>
   <div class="list" id="listInv"></div>
+  </div>
+
+  <div id="invCivil" hidden>
+    <div class="grid2" style="margin-bottom:16px">
+      <div class="tile gold"><div class="v" id="cTot">—</div><div class="l">Al civil</div><div class="s" id="cSub">—</div>
+        <div class="meter"><i id="cMeter" style="width:0%"></i></div></div>
+      <div class="tile"><div class="v" id="cConf">—</div><div class="l">Confirmados</div><div class="s" id="cConfSub">—</div></div>
+    </div>
+    <div class="note" style="margin-bottom:14px">La lista del civil va aparte de la fiesta: acá no hay save the date, solo quiénes están invitados y quiénes ya confirmaron que vienen.</div>
+    <button class="btn ghost block" id="btnCivilPick" style="margin-bottom:14px">Elegir del listado de la fiesta</button>
+    <div class="legend" id="civLegend"></div>
+    <div class="list" id="listCivil"></div>
+  </div>
 </section>
 
 <!-- ══════════ TAREAS ══════════ -->
@@ -913,9 +932,9 @@ var TABS = {
   },
   invitados: {
     name: 'App_Invitados',
-    headers: ['id', 'Nombre', 'Origen', 'Grupo', 'Enviado', 'Confirmado', 'Nota', '_u', '_d'],
-    fields: ['id', 'nombre', 'origen', 'grupo', 'enviado', 'confirmado', 'nota'],
-    bools: ['enviado', 'confirmado'],
+    headers: ['id', 'Nombre', 'Origen', 'Grupo', 'Enviado', 'Confirmado', 'Civil', 'Viene al civil', 'Nota', '_u', '_d'],
+    fields: ['id', 'nombre', 'origen', 'grupo', 'enviado', 'confirmado', 'civil', 'civilConf', 'nota'],
+    bools: ['enviado', 'confirmado', 'civil', 'civilConf'],
     nums: []
   },
   checklist: {
@@ -1272,7 +1291,17 @@ function mergeStates(a,b){
 }
 function mergeList(a,b){
   var m={},ord=[];
-  function put(it){if(!it||!it.id)return;if(!m[it.id]){m[it.id]=it;ord.push(it.id);return}if((it.u||0)>=(m[it.id].u||0))m[it.id]=it}
+  function put(it){
+    if(!it||!it.id)return;
+    if(!m[it.id]){m[it.id]=it;ord.push(it.id);return}
+    var p=m[it.id];
+    if((it.u||0)>=(p.u||0)){
+      /* Un backend sin las columnas del civil devuelve items sin esos campos:
+         no dejamos que pisen lo marcado en este teléfono. */
+      if(it.civil===undefined&&p.civil!==undefined){it.civil=p.civil;it.civilConf=p.civilConf}
+      m[it.id]=it;
+    }
+  }
   a.forEach(put);b.forEach(put);
   return ord.map(function(i){return m[i]});
 }
@@ -1553,8 +1582,31 @@ function renderPlata(){
   b.textContent=m.conSaldo; b.hidden=!m.conSaldo;
 }
 
-var fInv='todos',fGrupo='';
+var fInv='todos',fGrupo='',INV_VIEW='fiesta';
+function renderCivil(){
+  var arr=list('invitados').filter(function(g){return g.civil});
+  var conf=arr.filter(function(g){return g.civilConf}).length;
+  document.getElementById('cTot').textContent=arr.length;
+  document.getElementById('cSub').textContent=arr.length?'de '+rInv().total+' de la fiesta':'todavía nadie';
+  document.getElementById('cMeter').style.width=(arr.length?conf/arr.length*100:0).toFixed(1)+'%';
+  document.getElementById('cConf').textContent=conf;
+  document.getElementById('cConfSub').textContent=arr.length?'faltan '+(arr.length-conf):'—';
+  arr.sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es')});
+  document.getElementById('civLegend').innerHTML=arr.length?'<span>'+IC_OK+' viene al civil</span>':'';
+  document.getElementById('listCivil').innerHTML=arr.map(function(g){
+    return '<div class="item">'+
+      '<button class="main" data-edit="invitados" data-id="'+g.id+'" style="text-align:left">'+
+        '<span class="nm">'+esc(g.nombre)+'</span>'+
+        '<span class="sb"><span class="tag '+(g.origen==='Ro'?'ro':'mi')+'">'+(g.origen==='Ro'?'RO':'MILI')+'</span> '+esc(g.grupo||'')+'</span>'+
+      '</button>'+
+      '<button class="pill ic gold '+(g.civilConf?'on':'')+'" data-tog="civilConf" data-id="'+g.id+'" aria-pressed="'+(g.civilConf?'true':'false')+'" aria-label="Viene al civil" title="Viene al civil">'+IC_OK+'</button>'+
+      '</div>';
+  }).join('')||emptyBox('Nadie en la lista del civil','Tocá "Elegir del listado" para marcar quiénes van.');
+}
 function renderInv(){
+  document.getElementById('invFiesta').hidden=INV_VIEW!=='fiesta';
+  document.getElementById('invCivil').hidden=INV_VIEW!=='civil';
+  renderCivil();
   var i=rInv();
   document.getElementById('iTot').textContent=i.total;
   document.getElementById('iSub').textContent=i.ro+' de Ro · '+i.mi+' de Mili';
@@ -1930,19 +1982,30 @@ function editInv(id){
       '<button class="pill '+(g.enviado?'on':'')+'" id="e_e" style="flex:1;height:44px">'+(g.enviado?'✓ Save the date enviado':'Save the date sin enviar')+'</button></div>'+
       '<div style="display:flex;gap:10px;margin-top:10px">'+
       '<button class="pill gold '+(g.confirmado?'on':'')+'" id="e_cf" style="flex:1;height:44px">'+(g.confirmado?'✓ Confirmó que va':'Todavía no confirmó')+'</button></div></div>'+
+    '<div class="f"><label>Civil</label><div style="display:flex;gap:10px">'+
+      '<button class="pill '+(g.civil?'on':'')+'" id="e_cv" style="flex:1;height:44px">'+(g.civil?'✓ Invitado al civil':'No va al civil')+'</button></div>'+
+      '<div style="display:'+(g.civil?'flex':'none')+';gap:10px;margin-top:10px" id="e_cvc_w">'+
+      '<button class="pill gold '+(g.civilConf?'on':'')+'" id="e_cvc" style="flex:1;height:44px">'+(g.civilConf?'✓ Viene al civil':'Todavía no confirmó el civil')+'</button></div></div>'+
     '<div class="hr"></div><button class="btn ghost block" data-del="invitados" data-id="'+g.id+'" style="color:#9e4a63">Borrar invitado</button>',
     CANCEL()+'<button class="btn" id="e_save">Guardar</button>');
 
-  var env=g.enviado,cf=g.confirmado;
+  var env=g.enviado,cf=g.confirmado,cv=!!g.civil,cvc=!!g.civilConf;
   document.getElementById('e_e').onclick=function(){env=!env;this.classList.toggle('on',env);this.textContent=env?'✓ Save the date enviado':'Save the date sin enviar'};
   document.getElementById('e_cf').onclick=function(){cf=!cf;this.classList.toggle('on',cf);this.textContent=cf?'✓ Confirmó que va':'Todavía no confirmó'};
+  document.getElementById('e_cv').onclick=function(){
+    cv=!cv;if(!cv)cvc=false;
+    this.classList.toggle('on',cv);this.textContent=cv?'✓ Invitado al civil':'No va al civil';
+    document.getElementById('e_cvc_w').style.display=cv?'flex':'none';
+    var b=document.getElementById('e_cvc');b.classList.toggle('on',cvc);b.textContent=cvc?'✓ Viene al civil':'Todavía no confirmó el civil';
+  };
+  document.getElementById('e_cvc').onclick=function(){cvc=!cvc;this.classList.toggle('on',cvc);this.textContent=cvc?'✓ Viene al civil':'Todavía no confirmó el civil'};
   document.getElementById('e_save').onclick=function(){
     g=find('invitados',id)||g;
     g.nombre=document.getElementById('e_n1').value.trim();
     g.origen=document.getElementById('e_or').value==='Mili'?'Mi':'Ro';
     g.grupo=document.getElementById('e_gr').value.trim();
     g.nota=document.getElementById('e_nt').value.trim();
-    g.enviado=env;g.confirmado=cf;
+    g.enviado=env;g.confirmado=cf;g.civil=cv;g.civilConf=cvc;
     stamp(g);closeSheet();touched();toast('Guardado');
   };
 }
@@ -2292,8 +2355,21 @@ function addPago(){
   S.pagos.push(n);saveLocal();editPago(n.id);
 }
 function addInv(){
-  var g={id:uid('g'),nombre:'',origen:fInv==='mi'?'Mi':'Ro',grupo:fGrupo||'',enviado:false,confirmado:false,nota:'',u:now(),d:false};
+  var g={id:uid('g'),nombre:'',origen:fInv==='mi'?'Mi':'Ro',grupo:fGrupo||'',enviado:false,confirmado:false,civil:false,civilConf:false,nota:'',u:now(),d:false};
   S.invitados.push(g);saveLocal();editInv(g.id);
+}
+function openCivilPick(){
+  var arr=list('invitados').slice().sort(function(a,b){return a.nombre.localeCompare(b.nombre,'es')});
+  sheet('¿Quiénes van al civil?',
+    '<p style="margin:0 0 14px;color:var(--ink80)">Tildá a los que están invitados al civil. Se guarda al toque, sin pasos extra.</p>'+
+    (arr.length?'<div class="list">'+arr.map(function(g){
+      return '<div class="item">'+
+        '<button class="check '+(g.civil?'on':'')+'" data-cpick="'+g.id+'" aria-pressed="'+(g.civil?'true':'false')+'" aria-label="Invitado al civil">'+TICK+'</button>'+
+        '<div class="main"><span class="nm">'+esc(g.nombre)+'</span>'+
+        '<span class="sb"><span class="tag '+(g.origen==='Ro'?'ro':'mi')+'">'+(g.origen==='Ro'?'RO':'MILI')+'</span> '+esc(g.grupo||'')+'</span></div>'+
+        '</div>';
+    }).join('')+'</div>':emptyBox('Sin invitados','Primero agregá invitados a la fiesta.')),
+    '<button class="btn block" data-close>Listo</button>');
 }
 function addChk(sec,limite){
   var k={id:uid('k'),seccion:sec||fChk,tarea:'',hecho:false,resp:'',limite:limite||'',nota:'',links:'',pagoId:'',u:now(),d:false};
@@ -2332,6 +2408,7 @@ function openAddMenu(){
     };
   });
 }
+document.getElementById('btnCivilPick').onclick=function(){buzz(8);openCivilPick()};
 document.getElementById('fab').onclick=function(){
   buzz(10);
   if(SCREEN==='inicio'){openAddMenu();return}
@@ -2339,7 +2416,7 @@ document.getElementById('fab').onclick=function(){
   if(V==='plata'){
     addPago();
   } else if(V==='invitados'){
-    addInv();
+    if(INV_VIEW==='civil')openCivilPick();else addInv();
   } else if(V==='tareas'){
     addChk(null, CHK_VIEW==='cal'?(CAL_SEL||''):'');
   } else if(V==='ideas'){
@@ -2405,6 +2482,22 @@ document.body.addEventListener('click',function(e){
     fInv=t.dataset.i;
     document.querySelectorAll('[data-i]').forEach(function(b){b.classList.toggle('on',b.dataset.i===fInv)});
     renderInv();return;
+  }
+  if((t=e.target.closest('[data-iv]'))){
+    INV_VIEW=t.dataset.iv;buzz(6);
+    document.querySelectorAll('[data-iv]').forEach(function(b){b.classList.toggle('on',b.dataset.iv===INV_VIEW)});
+    renderInv();return;
+  }
+  if((t=e.target.closest('[data-cpick]'))){
+    var gc=find('invitados',t.dataset.cpick);
+    if(gc){
+      gc.civil=!gc.civil;
+      if(!gc.civil)gc.civilConf=false;
+      stamp(gc);buzz(10);
+      t.classList.toggle('on',gc.civil);
+      touched();
+    }
+    return;
   }
   if((t=e.target.closest('[data-k]'))){
     fChk=t.dataset.k;
