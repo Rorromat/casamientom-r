@@ -162,6 +162,8 @@ nav.bar{position:fixed;left:0;right:0;bottom:0;z-index:40;transform:translateZ(0
 .cd .u i{font:italic 400 22px/1 var(--font-display);color:var(--text-strong)}
 .cd .u span{font:400 13px/1.2 var(--font-sans);color:var(--text-muted)}
 .hero .when{margin-top:10px;font:500 17px/1.3 var(--font-hand);color:var(--text-muted)}
+.replay{margin-top:16px;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 15px;border-radius:999px;border:1px solid var(--accent-line);background:var(--surface-card);color:var(--accent);font:600 13px/1 var(--font-sans);transition:transform .15s ease}
+.replay:active{transform:scale(.96)}
 
 /* ── Fotos ── */
 .polaroid{margin:0;background:#fff;border:1px solid var(--border-card);border-radius:var(--radius-lg);box-shadow:var(--shadow-lift);padding:10px 10px 0;transform:rotate(-1.2deg)}
@@ -513,16 +515,16 @@ input[type=date].inp{padding-right:10px}
 /* Sobre de la intro: se toca el lacre, se parte, se abre la solapa y sale la carta */
 .sobre{position:relative;display:block;width:min(70vw,300px);aspect-ratio:3/2;margin:0;padding:0;border:0;background:none;cursor:pointer;perspective:900px;-webkit-tap-highlight-color:transparent;flex:none}
 .sobre-in{position:absolute;inset:0;animation:sobreIn .9s cubic-bezier(.34,1.56,.64,1) .1s both,sobreFlota 4.8s ease-in-out 1.2s infinite}
-.sobre .sb-back{position:absolute;inset:0;border-radius:12px;background:var(--tex-airmail),var(--papel-50);box-shadow:0 18px 40px -18px rgba(31,58,99,.45),0 2px 4px rgba(31,58,99,.08)}
+.sobre .sb-back{position:absolute;inset:0;z-index:0;border-radius:12px;background:var(--tex-airmail),var(--papel-50);box-shadow:0 18px 40px -18px rgba(31,58,99,.45),0 2px 4px rgba(31,58,99,.08)}
 .sobre .sb-back:after{content:"";position:absolute;inset:7px;border-radius:7px;background:#e9dcc6}
-.sobre .carta{position:absolute;left:7%;right:7%;top:9%;bottom:6%;border-radius:6px;background:var(--papel-50);box-shadow:0 1px 3px rgba(31,58,99,.15);
+.sobre .carta{position:absolute;z-index:2;left:7%;right:7%;top:9%;bottom:6%;border-radius:6px;background:var(--papel-50);box-shadow:0 1px 3px rgba(31,58,99,.15);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px}
 .sobre .carta svg{width:78%;height:auto;color:var(--vino-900)}
 .sobre .carta span{font:500 15px/1 var(--font-hand);color:var(--text-muted)}
-.sobre .sb-front{position:absolute;inset:0;border-radius:12px;background:var(--tex-airmail),var(--papel-50);
+.sobre .sb-front{position:absolute;inset:0;z-index:3;border-radius:12px;background:var(--tex-airmail),var(--papel-50);
   clip-path:polygon(0 0,50% 52%,100% 0,100% 100%,0 100%);filter:drop-shadow(0 -1px 0 rgba(31,58,99,.06))}
 .sobre .sb-front:after{content:"";position:absolute;inset:7px;border-radius:7px;background:linear-gradient(180deg,#f6ecdb,#f1e4cf)}
-.sobre .sb-flap{position:absolute;left:0;right:0;top:0;height:62%;transform-origin:50% 0;transform:rotateX(0);z-index:3;
+.sobre .sb-flap{position:absolute;left:0;right:0;top:0;height:62%;transform-origin:50% 0;transform:rotateX(0);z-index:4;
   clip-path:polygon(0 0,100% 0,50% 100%);background:linear-gradient(180deg,#f3e6d2,#e8d8bf);border-radius:12px 12px 0 0;backface-visibility:visible}
 .sobre .sb-flap:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--vino-700) 0 7px,transparent 7px 12px,var(--tinta-800) 12px 19px,transparent 19px 24px);clip-path:polygon(0 0,50% 100%,100% 0,96% 0,50% 87%,4% 0);opacity:.9}
 .sobre .lacre{position:absolute;left:50%;top:62%;width:64px;height:64px;margin:-32px 0 0 -32px;z-index:5;pointer-events:none}
@@ -551,7 +553,7 @@ input[type=date].inp{padding-right:10px}
 @keyframes cinta{to{transform:translateX(-50%)}}
 .gate-sobre{display:flex;flex-direction:column;align-items:center;gap:18px;position:relative}
 .gate.abre .gate-top,.gate.abre .carrusel{animation:gateSale .6s cubic-bezier(.4,0,.6,1) 1.15s forwards}
-.gate.abre .sobre-tip{opacity:0}
+.gate.abre .sobre-tip{animation:gateSale .3s ease forwards}
 @keyframes gateSale{to{opacity:0;transform:translateY(-14px)}}
 @media(min-height:860px){.cinta .stamp{width:142px}.cinta{gap:24px}}
 @media(max-height:720px){.cinta .stamp{width:96px}.carrusel{padding:8px 0}.gate-top svg{width:min(48vw,190px)}}
@@ -571,7 +573,8 @@ input[type=date].inp{padding-right:10px}
 @keyframes lacrePresion{50%{transform:scale(.9)}}
 @keyframes lacreIzq{to{transform:translate(-26px,46px) rotate(-38deg);opacity:0}}
 @keyframes lacreDer{to{transform:translate(24px,52px) rotate(32deg);opacity:0}}
-@keyframes solapa{0%{transform:rotateX(0);z-index:3}49%{z-index:3}50%{z-index:0}100%{transform:rotateX(178deg);z-index:0;filter:brightness(.92)}}
+@keyframes solapa{0%{transform:rotateX(0)}100%{transform:rotateX(178deg);filter:brightness(.92)}}
+.sobre.tras .sb-flap{z-index:1}
 @keyframes cartaSube{to{transform:translateY(-62%)}}
 @keyframes cartaCrece{from{transform:translateY(-62%)}to{transform:translateY(-30%) scale(2.6);opacity:0}}
 @keyframes sobreCae{to{transform:translateY(70px) rotate(4deg);opacity:0}}
@@ -583,6 +586,7 @@ input[type=date].inp{padding-right:10px}
 </style>
 </head>
 <body>
+<template id="introTpl">
 <div id="splash" style="position:fixed;inset:0;z-index:999;background:#f6efe4;overflow:hidden;transition:opacity .7s ease">
   <div id="splashFall" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 12vw;opacity:0;transition:opacity .5s ease">
     <svg id="splashLogo" viewBox="0 0 812.67 342" style="display:block;width:min(62vw,300px);height:auto;color:#4e1226"><use href="#logoFull" width="812.67" height="342"/></svg>
@@ -623,10 +627,15 @@ input[type=date].inp{padding-right:10px}
     <span id="spL" style="font:italic 400 15px/1 var(--font-display);color:var(--tinta-800)">días</span>
   </div>
 </div>
+</template>
 <script>
-(function(){
-  /* La intro arranca con un sobre cerrado. Al tocar el lacre se abre la carta (y empieza la
-     música, que necesita ese toque en el iPhone). La intro se queda hasta "Ingresar". */
+/* La intro arranca con un sobre cerrado. Al tocar el lacre se abre la carta (y empieza la
+   música, que necesita ese toque en el iPhone). La intro se queda hasta "Ingresar".
+   Vive en una plantilla para poder volver a verla desde el Inicio. */
+function iniciarIntro(){
+  if(document.getElementById('splash'))return;
+  document.body.insertBefore(document.importNode(document.getElementById('introTpl').content,true),document.body.firstChild);
+  if(window.tick)try{tick()}catch(e){}
   var sp=document.getElementById('splash'),v=document.getElementById('splashVid'),fall=document.getElementById('splashFall');
   var a=document.getElementById('splashMusic'),gate=document.getElementById('splashGate'),sobre=document.getElementById('splashSobre'),go=document.getElementById('splashGo');
   var done=false,anduvo=false,abierta=false,ctx=null,gan=null,petalos=null;
@@ -654,6 +663,8 @@ input[type=date].inp{padding-right:10px}
     try{navigator.vibrate&&navigator.vibrate(12)}catch(e){}
     gate.classList.add('abre');
     sobre.classList.add('abre');sobre.disabled=true;
+    /* La solapa pasa detrás de la carta cuando cruza la vertical */
+    setTimeout(function(){sobre.classList.add('tras')},quieto?0:620);
     var dur=quieto?0:1900;
     setTimeout(function(){
       gate.remove();
@@ -722,7 +733,8 @@ input[type=date].inp{padding-right:10px}
     setTimeout(function(){sp.style.opacity='0'},60);
     setTimeout(function(){
       if(petalos){cancelAnimationFrame(petalos);petalos=null}
-      try{v.pause()}catch(e){}document.body.appendChild(a);sp.remove();
+      try{v.pause();a.pause()}catch(e){}sp.remove();
+      document.removeEventListener('visibilitychange',alVolver);
     },1400);
   }
   /* El video es un plus: si no arranca, queda la animación del logo */
@@ -739,12 +751,14 @@ input[type=date].inp{padding-right:10px}
     var p=a.play();if(p&&p.catch)p.catch(function(){});
     abrir();
   });
-  document.addEventListener('visibilitychange',function(){
+  function alVolver(){
     if(done)return;
     if(document.visibilityState==='hidden')a.pause();
     else if(abierta){var p=a.play();if(p&&p.catch)p.catch(function(){});if(ctx&&ctx.resume)ctx.resume()}
-  });
-})();
+  }
+  document.addEventListener('visibilitychange',alVolver);
+}
+iniciarIntro();
 </script>
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs><symbol id="logoFull" viewBox="0 0 812.67 342" fill="currentColor"><path d="M91.33,76.83c1.29,4.18-1.86,6.75-2.56,9.94-2.73,12.45-1.15,26.75-1.4,39.6-.47,24.21-1.85,51.84-.08,76,.45,6.19,3.11,11.45,3.04,17.46h-19c.55-6.54,2.64-12.86,3.04-19.46,1.58-26.12-.85-54.28-.54-80.55l-22.14,81.06-3.73-.19-1.45-1.56-20.18-74.31c.18,8.49-.26,17.04-.05,25.54.45,18.11-.58,38.02,1.01,55.99.36,4.06,1.47,7.33,3.05,11.02l-1.51,2.45H10.83c-.66,0-1.43-1.68-1.56-2.53-.57-3.69,2.13-4.3,3.26-6.77,3.78-8.23,5.44-48.75,5.84-60.16.35-10.28,1.52-42.92-1.31-50.78-.93-2.58-4.25-4.22-2.74-8.76h19c1.07,8.97,2.82,17.85,4.87,26.63,3.58,15.4,7.64,33.71,12.43,48.58.34,1.05.25,3.02,1.69,2.78l23.01-91.99h16Z"></path>
   <path d="M349.35,185.83c1.42,1.4,1.84-.12,2.01-1.5.28-2.31-.75-12.09-1.15-14.87-.37-2.6-.84-5.95-1.67-8.38-1.36-4.02-5.69-4.06-4.26-9.6.42-1.68,14.38-2.54,15.62-.72,1.95,15.86,4.39,31.97-1.32,47.4,5.34,7.9,12.75,17.17,21.37,21.57,2.59,1.32,6.57.51,3.89,5.11-1.47,2.53-9.21,2.27-11.92,1.9-7.97-1.09-14.14-10.15-19.12-15.91-7.66,6.86-16.04,11.96-26.86,10.89-30.13-2.97-39.24-40.01-26.02-63.81,3.36-6.06,8.67-10.73,12.37-16.53-5.49-14.86-10.7-31.55-2.34-46.43,7.99-14.22,29.39-14.25,33.92,2.84,4.37,16.46-7.32,31.67-17.14,43.54l22.61,44.5ZM324.32,131.83c3.1-7.92,7.46-14.62,8.05-23.46,1.3-19.55-12.72-20.91-14.06-2.08-.45,6.32,1.33,18.41,3.94,24.14.53,1.16-.48,1.81,2.08,1.4ZM316.83,151.85c-10.95,12.7-11.11,35.82-2.94,49.92,8.29,14.3,24.62,16.3,32.19.55-12.03-15.4-20.62-33.04-29.25-50.47Z"></path>
@@ -818,6 +832,7 @@ input[type=date].inp{padding-right:10px}
     <svg class="logo" viewBox="0 0 812.67 342" role="img" aria-label="Mili &amp; Rorro"><use href="#logoFull" width="812.67" height="342"/></svg>
     <div class="cd"><b id="cdN">—</b><span class="u"><i id="cdU">días</i><span id="cdL">para el gran día</span></span></div>
     <div class="when">Viernes 5 de marzo de 2027 · Estación Fátima</div>
+    <button class="replay" id="btnIntro" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>Volver a ver la intro</button>
   </div></div>
 
   <div class="sec">
@@ -2429,6 +2444,7 @@ function openAddMenu(){
     };
   });
 }
+document.getElementById('btnIntro').onclick=function(){buzz(8);if(SHEET_OPEN)closeSheet();iniciarIntro()};
 document.getElementById('btnCivilPick').onclick=function(){buzz(8);openCivilPick()};
 document.getElementById('fab').onclick=function(){
   buzz(10);
