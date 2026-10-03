@@ -522,6 +522,8 @@ input[type=date].inp{padding-right:10px}
   <div id="splashPill" style="position:absolute;right:16px;bottom:max(24px,env(safe-area-inset-bottom));animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .4s both, splashSway 4.5s ease-in-out 1.3s infinite;transform-origin:70% 100%;background:#fbf8f8;border-radius:999px;padding:14px 22px;box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26)">
     <svg viewBox="0 0 812.67 167.97" style="display:block;width:min(38vw,160px);height:auto;color:#4e1226"><use href="#logoText" width="812.67" height="167.97"/></svg>
   </div>
+  <audio id="splashMusic" src="intro-musica.mp3" preload="auto"></audio>
+  <button id="splashSnd" type="button" hidden style="position:absolute;right:16px;top:max(20px,env(safe-area-inset-top));display:flex;align-items:center;gap:8px;background:#fbf8f8;color:#7a1f38;border:0;border-radius:999px;padding:11px 16px;font:600 13px/1 var(--font-sans);box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26);animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .7s both"><span aria-hidden="true" style="font-size:16px">♪</span>Tocá para escuchar</button>
   <div id="splashCd" style="position:absolute;left:16px;bottom:max(24px,env(safe-area-inset-bottom));animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .55s both;background:#fbf8f8;border-radius:999px;padding:17px 20px;box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26);display:flex;align-items:baseline;gap:7px;color:#4e1226;white-space:nowrap">
     <b id="spN" style="font:400 30px/1 var(--font-display);font-variant-numeric:lining-nums;color:var(--vino-700)">—</b>
     <span id="spL" style="font:italic 400 15px/1 var(--font-display);color:var(--tinta-800)">días</span>
@@ -532,18 +534,61 @@ input[type=date].inp{padding-right:10px}
   var sp=document.getElementById('splash'),v=document.getElementById('splashVid');
   var fall=document.getElementById('splashFall'),done=false,anduvo=false;
   var T0=Date.now(), MIN=2000;
+
+  /* Música de la intro. Sigue sonando si la intro termina sola; se va con
+     fade out al saltearla, al primer toque dentro de la app o al salir. */
+  var a=document.getElementById('splashMusic'),snd=document.getElementById('splashSnd');
+  var suena=false,apagada=false,ctx=null,gan=null;
+  /* iOS no deja cambiar audio.volume: ahí el fade va por Web Audio */
+  var volLibre=(function(){try{a.volume=.5;var ok=a.volume===.5;a.volume=1;return ok}catch(e){return false}})();
+  function sonar(conToque){
+    if(suena||apagada)return;
+    if(conToque&&!volLibre&&!ctx){
+      try{
+        var AC=window.AudioContext||window.webkitAudioContext;
+        ctx=new AC();gan=ctx.createGain();
+        ctx.createMediaElementSource(a).connect(gan);gan.connect(ctx.destination);
+        ctx.resume();
+      }catch(e){ctx=null}
+    }
+    var pr=a.play();
+    var ok=function(){suena=true;snd.hidden=true},no=function(){if(!done)snd.hidden=false};
+    if(pr&&pr.then)pr.then(ok,no);else ok();
+  }
+  function apagar(){
+    if(apagada)return;apagada=true;snd.hidden=true;
+    if(!suena){try{a.pause()}catch(e){}return}
+    var fin=function(){try{a.pause()}catch(e){}};
+    if(ctx&&gan){
+      var t=ctx.currentTime;gan.gain.setValueAtTime(gan.gain.value,t);gan.gain.linearRampToValueAtTime(0,t+.9);
+      setTimeout(fin,950);
+    }else{
+      var v0=a.volume,k=0,iv=setInterval(function(){k++;try{a.volume=Math.max(0,v0*(1-k/18))}catch(e){}if(k>=18){clearInterval(iv);fin()}},50);
+    }
+  }
+  snd.addEventListener('click',function(e){e.stopPropagation();sonar(true)});
+  /* Si el teléfono no dejó arrancar la música, cualquier toque en la intro la arranca */
+  sp.addEventListener('click',function(e){if(!e.target.closest('#splashPill'))sonar(true)});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')apagar()});
+  a.addEventListener('ended',function(){apagada=true});
+
   function hide(force){
     if(done)return;
     var falta=MIN-(Date.now()-T0);
     if(falta>0&&force!==true){setTimeout(hide,falta);return}
-    done=true;
+    done=true;snd.hidden=true;
     var capa=anduvo?v:fall;
     capa.style.transformOrigin='50% 42%';
     capa.style.animation='splashZoom 1.1s cubic-bezier(.55,0,.30,1) forwards';
     sp.querySelectorAll('#splashPill,#splashCd').forEach(function(pill){pill.style.transition='opacity .4s ease';pill.style.opacity='0'});
     sp.style.transition='opacity .9s ease .35s';
     setTimeout(function(){sp.style.opacity='0'},60);
-    setTimeout(function(){sp.remove()},1400);
+    setTimeout(function(){
+      /* El audio vive fuera del splash para seguir sonando dentro de la app */
+      document.body.appendChild(a);sp.remove();
+      if(suena&&!apagada)document.addEventListener('pointerdown',apagar,{capture:true,once:true});
+      else if(!suena)apagar();
+    },1400);
   }
   /* El video es un plus: si no arranca, queda la animación del logo */
   v.addEventListener('playing',function(){
@@ -557,11 +602,12 @@ input[type=date].inp{padding-right:10px}
     pill.style.cursor='pointer';
     pill.setAttribute('role','button');
     pill.setAttribute('aria-label','Saltear intro');
-    pill.addEventListener('click',function(e){e.preventDefault();try{v.pause()}catch(_){}hide(true)});
+    pill.addEventListener('click',function(e){e.preventDefault();try{v.pause()}catch(_){}apagar();hide(true)});
   }
   v.addEventListener('error',function(){setTimeout(hide,600)});
   var p=v.play&&v.play();
   if(p&&p.catch)p.catch(function(){setTimeout(hide,600)});
+  sonar(false);
   setTimeout(function(){if(!anduvo)hide()},2600);
   setTimeout(hide,9000);
 })();
