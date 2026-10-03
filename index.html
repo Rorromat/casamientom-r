@@ -518,7 +518,7 @@ input[type=date].inp{padding-right:10px}
   <div id="splashFall" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:0 12vw;transition:opacity .5s ease">
     <svg viewBox="0 0 812.67 342" style="display:block;width:min(62vw,300px);height:auto;color:#4e1226;animation:splashPop 1s cubic-bezier(.34,1.56,.64,1) .15s both"><use href="#logoFull" width="812.67" height="342"/></svg>
   </div>
-  <video id="splashVid" src="intro.mp4" muted playsinline preload="none" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;transition:opacity .45s ease"></video>
+  <video id="splashVid" src="intro.mp4" autoplay muted playsinline preload="auto" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;transition:opacity .45s ease"></video>
   <div id="splashPill" style="position:absolute;right:16px;bottom:max(24px,env(safe-area-inset-bottom));animation:splashPop .9s cubic-bezier(.34,1.56,.64,1) .4s both, splashSway 4.5s ease-in-out 1.3s infinite;transform-origin:70% 100%;background:#fbf8f8;border-radius:999px;padding:14px 22px;box-shadow:0 1px 2px rgba(40,40,58,.12), 0 12px 28px -16px rgba(40,40,58,.26)">
     <svg viewBox="0 0 812.67 167.97" style="display:block;width:min(38vw,160px);height:auto;color:#4e1226"><use href="#logoText" width="812.67" height="167.97"/></svg>
   </div>
@@ -531,10 +531,7 @@ input[type=date].inp{padding-right:10px}
 (function(){
   var sp=document.getElementById('splash'),v=document.getElementById('splashVid');
   var fall=document.getElementById('splashFall'),done=false,anduvo=false;
-  /* La intro completa (con video) va una vez por día; las demás aperturas son cortas. */
-  var hoy=new Date().toDateString(),corto=false;
-  try{corto=localStorage.getItem('mr_intro')===hoy;localStorage.setItem('mr_intro',hoy)}catch(e){}
-  var T0=Date.now(), MIN=corto?700:2000;
+  var T0=Date.now(), MIN=2000;
   function hide(force){
     if(done)return;
     var falta=MIN-(Date.now()-T0);
@@ -544,9 +541,9 @@ input[type=date].inp{padding-right:10px}
     capa.style.transformOrigin='50% 42%';
     capa.style.animation='splashZoom 1.1s cubic-bezier(.55,0,.30,1) forwards';
     sp.querySelectorAll('#splashPill,#splashCd').forEach(function(pill){pill.style.transition='opacity .4s ease';pill.style.opacity='0'});
-    sp.style.transition=corto?'opacity .45s ease .1s':'opacity .9s ease .35s';
+    sp.style.transition='opacity .9s ease .35s';
     setTimeout(function(){sp.style.opacity='0'},60);
-    setTimeout(function(){sp.remove()},corto?650:1400);
+    setTimeout(function(){sp.remove()},1400);
   }
   /* El video es un plus: si no arranca, queda la animación del logo */
   v.addEventListener('playing',function(){
@@ -562,9 +559,7 @@ input[type=date].inp{padding-right:10px}
     pill.setAttribute('aria-label','Saltear intro');
     pill.addEventListener('click',function(e){e.preventDefault();try{v.pause()}catch(_){}hide(true)});
   }
-  if(corto){setTimeout(hide,MIN);return}
   v.addEventListener('error',function(){setTimeout(hide,600)});
-  v.preload='auto';
   var p=v.play&&v.play();
   if(p&&p.catch)p.catch(function(){setTimeout(hide,600)});
   setTimeout(function(){if(!anduvo)hide()},2600);
