@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function esDeLaBoda() {
+      return request.auth != null
+        && request.auth.token.email in ['rorromateus@gmail.com', 'formosamariaemilia@gmail.com'];
+    }
+    match /{coleccion}/{id} {
+      allow read, write: if esDeLaBoda()
+        && coleccion in ['pagos', 'invitados', 'checklist', 'timeline', 'ideas', 'fotos', 'cuotas', 'config'];
+    }
+  }
+}

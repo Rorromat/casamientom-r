@@ -22,6 +22,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Mili y Rorro">
+<script defer src="vendor/firebase-app-compat.js"></script>
+<script defer src="vendor/firebase-auth-compat.js"></script>
+<script defer src="vendor/firebase-firestore-compat.js"></script>
 <meta name="theme-color" content="#f3edef">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -902,331 +905,6 @@ nav.bar{background:rgba(246,239,228,.94);border-top:1px solid rgba(31,58,99,.09)
 <input type="file" id="fileFoto" accept="image/*" multiple hidden>
 
 <script>/*BAKED*/window.__BAKED__={"url":"https://script.google.com/macros/s/AKfycbz7I-KyD1OZ-a2K0buEztmNbUmWpuDsYYzcCcYwzODSmz0jqnL4oQnQFjY2AarvFt10tA/exec","token":""};/*BAKED_END*/</script>
-<script type="text/plain" id="gsCode">/**
- * Casamiento Rorro & Mili — 5 de marzo de 2027
- * Backend de la app de seguimiento sobre Google Sheets.
- *
- * COMO INSTALARLO (5 minutos, una sola vez):
- *  1. Abri el Sheet "Casamiento RyM".
- *  2. Menu Extensiones > Apps Script.
- *  3. Borra todo lo que haya en Codigo.gs y pega TODO este archivo.
- *  4. Arriba, elegi la funcion "instalar" y toca Ejecutar. Autorizá con tu cuenta.
- *     Esto crea las hojas App_Pagos, App_Invitados, App_Checklist, App_Timeline y App_Config.
- *  5. Tocá Implementar > Nueva implementacion > tipo "Aplicacion web".
- *       - Ejecutar como: Yo
- *       - Quien tiene acceso: Cualquier persona
- *     Copiá la URL que termina en /exec.
- *  6. Pegá esa URL en la app, en Ajustes > Conexion con el Sheet. Listo.
- *
- * Si mas adelante cambias este codigo, acordate de Implementar > Administrar
- * implementaciones > editar > Version nueva, para que la URL tome los cambios.
- */
-
-// Si querés una clave compartida, poné algo acá y lo mismo en la app. Vacío = sin clave.
-var TOKEN = '';
-
-var TABS = {
-  pagos: {
-    name: 'App_Pagos',
-    headers: ['id', 'Categoria', 'Concepto', 'Proveedor', 'Moneda', 'Total', 'Pagado', 'Estado', 'Fecha pago', 'Proximo pago', 'Contratado', 'Nota', '_u', '_d'],
-    fields: ['id', 'cat', 'concepto', 'prov', 'moneda', 'total', 'pagado', 'estado', 'fecha', 'proximo', 'contratado', 'nota'],
-    bools: ['contratado'],
-    nums: ['total', 'pagado']
-  },
-  invitados: {
-    name: 'App_Invitados',
-    headers: ['id', 'Nombre', 'Origen', 'Grupo', 'Enviado', 'Confirmado', 'Civil', 'Viene al civil', 'Nota', '_u', '_d'],
-    fields: ['id', 'nombre', 'origen', 'grupo', 'enviado', 'confirmado', 'civil', 'civilConf', 'nota'],
-    bools: ['enviado', 'confirmado', 'civil', 'civilConf'],
-    nums: []
-  },
-  checklist: {
-    name: 'App_Checklist',
-    headers: ['id', 'Seccion', 'Tarea', 'Hecho', 'Responsable', 'Fecha limite', 'Nota', 'Links', 'PagoId', '_u', '_d'],
-    fields: ['id', 'seccion', 'tarea', 'hecho', 'resp', 'limite', 'nota', 'links', 'pagoId'],
-    bools: ['hecho'],
-    nums: []
-  },
-  timeline: {
-    name: 'App_Timeline',
-    headers: ['id', 'Hora', 'Actividad', 'Nota', '_u', '_d'],
-    fields: ['id', 'hora', 'actividad', 'nota'],
-    bools: [],
-    nums: []
-  },
-  ideas: {
-    name: 'App_Ideas',
-    headers: ['id', 'Titulo', 'Nota', 'Links', '_u', '_d'],
-    fields: ['id', 'titulo', 'nota', 'links'],
-    bools: [],
-    nums: []
-  },
-  fotos: {
-    name: 'App_Fotos',
-    headers: ['id', 'Coleccion', 'Item', 'Imagen', '_u', '_d'],
-    fields: ['id', 'col', 'ref', 'data'],
-    bools: [],
-    nums: []
-  },
-  cuotas: {
-    name: 'App_Cuotas',
-    headers: ['id', 'PagoId', 'Fecha', 'Monto', 'Pagada', 'Nota', '_u', '_d'],
-    fields: ['id', 'pagoId', 'fecha', 'monto', 'pagada', 'nota'],
-    bools: ['pagada'],
-    nums: ['monto']
-  }
-};
-
-var CONFIG_TAB = 'App_Config';
-
-/* ------------------------------------------------------------------ */
-/* Endpoints                                                           */
-/* ------------------------------------------------------------------ */
-
-function doGet(e) {
-  return HtmlService.createHtmlOutput(
-    '<h2>Casamiento Rorro &amp; Mili</h2>' +
-    '<p>El backend esta funcionando. Pega esta misma URL en la app, en Ajustes &gt; Conexion con el Sheet.</p>'
-  );
-}
-
-function doPost(e) {
-  var res;
-  try {
-    var body = JSON.parse(e.postData.contents || '{}');
-    if (TOKEN && body.token !== TOKEN) {
-      res = { ok: false, error: 'Clave incorrecta' };
-    } else {
-      var lock = LockService.getScriptLock();
-      lock.waitLock(20000);
-      try {
-        ensureTabs();
-        if (body.action === 'pull') {
-          res = { ok: true, state: readState() };
-        } else if (body.action === 'push') {
-          var merged = mergeStates(readState(), body.state || {});
-          writeState(merged);
-          res = { ok: true, state: merged };
-        } else {
-          res = { ok: false, error: 'Accion desconocida: ' + body.action };
-        }
-      } finally {
-        lock.releaseLock();
-      }
-    }
-  } catch (err) {
-    res = { ok: false, error: String(err) };
-  }
-  return ContentService.createTextOutput(JSON.stringify(res))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-/* ------------------------------------------------------------------ */
-/* Instalacion                                                         */
-/* ------------------------------------------------------------------ */
-
-function instalar() {
-  ensureTabs();
-  SpreadsheetApp.getActive().toast('Hojas de la app creadas. Ahora implementá como aplicacion web.', 'Casamiento', 8);
-}
-
-function ensureTabs() {
-  var ss = SpreadsheetApp.getActive();
-  Object.keys(TABS).forEach(function (k) {
-    var def = TABS[k];
-    var sh = ss.getSheetByName(def.name);
-    if (!sh) {
-      sh = ss.insertSheet(def.name);
-      sh.getRange(1, 1, 1, def.headers.length).setValues([def.headers]);
-      sh.setFrozenRows(1);
-      sh.getRange(1, 1, 1, def.headers.length).setFontWeight('bold').setBackground('#EFEAE0');
-    } else {
-      // Migra columnas nuevas (ej: Links) sin tocar los datos existentes.
-      var head = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0];
-      def.headers.forEach(function (h, i) {
-        if (head.indexOf(h) < 0) {
-          sh.insertColumnBefore(i + 1);
-          sh.getRange(1, i + 1).setValue(h).setFontWeight('bold').setBackground('#EFEAE0');
-          head.splice(i, 0, h);
-        }
-      });
-    }
-  });
-  if (!ss.getSheetByName(CONFIG_TAB)) {
-    var c = ss.insertSheet(CONFIG_TAB);
-    c.getRange(1, 1, 1, 3).setValues([['Clave', 'Valor', '_u']]);
-    c.setFrozenRows(1);
-    c.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#EFEAE0');
-  }
-}
-
-/** Sella la fila editada a mano para que la app respete ese cambio. */
-function onEdit(e) {
-  try {
-    var sh = e.range.getSheet();
-    var name = sh.getName();
-    var def = null;
-    Object.keys(TABS).forEach(function (k) { if (TABS[k].name === name) def = TABS[k]; });
-    if (!def) return;
-    var uCol = def.headers.indexOf('_u') + 1;
-    var row = e.range.getRow();
-    if (row < 2 || uCol < 1) return;
-    var n = e.range.getNumRows();
-    for (var i = 0; i < n; i++) {
-      sh.getRange(row + i, uCol).setValue(Date.now());
-    }
-  } catch (err) { /* silencio */ }
-}
-
-/* ------------------------------------------------------------------ */
-/* Lectura / escritura                                                 */
-/* ------------------------------------------------------------------ */
-
-function readState() {
-  var ss = SpreadsheetApp.getActive();
-  var state = { meta: {}, config: {} };
-
-  Object.keys(TABS).forEach(function (k) {
-    var def = TABS[k];
-    var sh = ss.getSheetByName(def.name);
-    var out = [];
-    if (sh && sh.getLastRow() > 1) {
-      var values = sh.getRange(2, 1, sh.getLastRow() - 1, def.headers.length).getValues();
-      values.forEach(function (row) {
-        var o = {};
-        var empty = true;
-        def.fields.forEach(function (f, i) {
-          var v = row[i];
-          if (def.bools.indexOf(f) >= 0) {
-            o[f] = (v === true || String(v).toUpperCase() === 'TRUE' || String(v) === '1' || String(v).toLowerCase() === 'si');
-          } else if (def.nums.indexOf(f) >= 0) {
-            o[f] = Number(v) || 0;
-          } else {
-            if (v instanceof Date) {
-              if (f === 'hora') {
-                v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'HH:mm');
-              } else {
-                v = Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-              }
-            }
-            o[f] = v === null || v === undefined ? '' : String(v);
-          }
-          if (String(v || '').length) empty = false;
-        });
-        if (empty && !o.id) return;
-        o.u = Number(row[def.headers.indexOf('_u')]) || 0;
-        o.d = row[def.headers.indexOf('_d')] === true || String(row[def.headers.indexOf('_d')]).toUpperCase() === 'TRUE';
-        if (o.id) out.push(o);
-      });
-    }
-    state[k] = out;
-  });
-
-  var cfg = ss.getSheetByName(CONFIG_TAB);
-  if (cfg && cfg.getLastRow() > 1) {
-    cfg.getRange(2, 1, cfg.getLastRow() - 1, 3).getValues().forEach(function (r) {
-      if (r[0]) state.config[String(r[0])] = { v: String(r[1]), u: Number(r[2]) || 0 };
-    });
-  }
-  state.meta.serverTime = Date.now();
-  return state;
-}
-
-function writeState(state) {
-  var ss = SpreadsheetApp.getActive();
-  var LIMITE = Date.now() - 30 * 24 * 60 * 60 * 1000;
-
-  Object.keys(TABS).forEach(function (k) {
-    var def = TABS[k];
-    var sh = ss.getSheetByName(def.name);
-    // Los borrados se guardan un mes como "lápida" para que no revivan
-    // desde un celular desconectado. Pasado ese plazo, la fila se va.
-    var items = (state[k] || []).filter(function (o) {
-      return !(o.d === true && (Number(o.u) || 0) < LIMITE);
-    });
-    items.sort(function (a, b) {
-      return (a.d === true ? 1 : 0) - (b.d === true ? 1 : 0);
-    });
-    var rows = items.map(function (o) {
-      var r = def.fields.map(function (f) {
-        var v = o[f];
-        if (def.bools.indexOf(f) >= 0) return v === true;
-        if (def.nums.indexOf(f) >= 0) return Number(v) || 0;
-        return v === undefined || v === null ? '' : v;
-      });
-      r.push(Number(o.u) || Date.now());
-      r.push(o.d === true);
-      return r;
-    });
-    var alto = sh.getLastRow() - 1;
-    if (alto > 0) {
-      var todo = sh.getRange(2, 1, alto, def.headers.length);
-      todo.clearContent();
-      todo.setFontLine('none').setFontColor(null).setBackground(null);
-    }
-    if (rows.length) {
-      sh.getRange(2, 1, rows.length, def.headers.length).setValues(rows);
-      var vivos = items.filter(function (o) { return o.d !== true; }).length;
-      var muertos = rows.length - vivos;
-      if (muertos) {
-        sh.getRange(2 + vivos, 1, muertos, def.headers.length)
-          .setFontLine('line-through')
-          .setFontColor('#9AA0A6')
-          .setBackground('#F1F3F4');
-      }
-    }
-  });
-
-  var cfg = ss.getSheetByName(CONFIG_TAB);
-  var crows = Object.keys(state.config || {}).map(function (k) {
-    var e = state.config[k];
-    return [k, e && e.v !== undefined ? e.v : '', e && e.u ? e.u : Date.now()];
-  });
-  if (cfg.getLastRow() > 1) cfg.getRange(2, 1, cfg.getLastRow() - 1, 3).clearContent();
-  if (crows.length) cfg.getRange(2, 1, crows.length, 3).setValues(crows);
-}
-
-/* ------------------------------------------------------------------ */
-/* Merge: gana el cambio mas nuevo, item por item                      */
-/* ------------------------------------------------------------------ */
-
-function mergeStates(a, b) {
-  var out = { meta: { serverTime: Date.now() }, config: {} };
-  Object.keys(TABS).forEach(function (k) {
-    out[k] = mergeList(a[k] || [], b[k] || []);
-  });
-  var keys = {};
-  Object.keys(a.config || {}).forEach(function (k) { keys[k] = 1; });
-  Object.keys(b.config || {}).forEach(function (k) { keys[k] = 1; });
-  Object.keys(keys).forEach(function (k) {
-    var x = (a.config || {})[k], y = (b.config || {})[k];
-    if (!x) out.config[k] = y;
-    else if (!y) out.config[k] = x;
-    else out.config[k] = (Number(y.u) || 0) >= (Number(x.u) || 0) ? y : x;
-  });
-  return out;
-}
-
-function mergeList(a, b) {
-  var map = {}, order = [];
-  function put(item) {
-    if (!item || !item.id) return;
-    if (!map[item.id]) { map[item.id] = item; order.push(item.id); return; }
-    var prev = map[item.id];
-    if ((Number(item.u) || 0) >= (Number(prev.u) || 0)) map[item.id] = item;
-  }
-  a.forEach(put);
-  b.forEach(put);
-  return order.map(function (id) { return map[id]; }).filter(function (o) { return !o.d; });
-}
-</script>
-<script>
-/* Se captura el HTML original (sin renderizar) para poder re-descargar la app conectada. */
-var PRISTINE = '';
-document.addEventListener('DOMContentLoaded', function(){
-  PRISTINE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-}, {once:true});
-</script>
 <script>
 /* ═══════════════ Datos iniciales (del Sheet "Casamiento RyM") ═══════════════ */
 var FECHA_BODA = new Date(2027, 2, 5, 18, 0, 0);
@@ -1238,7 +916,7 @@ var SEED = { config:{}, pagos:[], invitados:[], checklist:[], timeline:[], ideas
 var LS='miliRorro_v3', LSCFG='miliRorro_cfg_v2';
 var COLS=['pagos','invitados','checklist','timeline','ideas','fotos','cuotas'];
 var S=null, CFG={url:'',token:'',auto:true,onboarded:false};
-var pushTimer=null, pullTimer=null, busy=false, pendiente=false, reintentos=0;
+var pushTimer=null, pendiente=false;
 
 function now(){return Date.now()}
 function uid(p){return p+'_'+Math.random().toString(36).slice(2,7)+now().toString(36).slice(-4)}
@@ -1316,12 +994,135 @@ function setSync(cls,txt){
   var d=document.getElementById('syncDot'), t=document.getElementById('syncTxt');
   d.className='dot '+(cls||''); t.textContent=txt;
 }
-function schedulePush(){
-  if(!CFG.url||!CFG.auto)return;
-  pendiente=true;
-  clearTimeout(pushTimer); pushTimer=setTimeout(function(){push(true)},2200);
+/* ═══════════════ Sync en tiempo real con Firebase ═══════════════ */
+var FB_CONFIG={
+  apiKey:'AIzaSyDIqMQIh3a5l0vEBE7C-P9vHpCOJOV1EKE',
+  authDomain:'casamiento-ryr.firebaseapp.com',
+  projectId:'casamiento-ryr',
+  storageBucket:'casamiento-ryr.firebasestorage.app',
+  messagingSenderId:'991490056757',
+  appId:'1:991490056757:web:cc0c36e3af71a44da4077c'
+};
+var FCOLS=COLS.concat(['config']);
+/* remU: la versión (_u) que la nube tiene de cada item. subido: lo que ya mandamos y está en camino. */
+var FB={auth:null,db:null,user:null,ready:false,listo:{},ultimo:{},remU:{},subido:{},unsub:[],enVuelo:0};
+
+function fbInit(){
+  if(!window.firebase){setSync('err','Sin conexión');return}
+  firebase.initializeApp(FB_CONFIG);
+  FB.auth=firebase.auth();FB.db=firebase.firestore();
+  if(/^(localhost|127\.0\.0\.1)$/.test(location.hostname)){
+    FB.auth.useEmulator('http://127.0.0.1:9099',{disableWarnings:true});FB.db.useEmulator('127.0.0.1',8085);
+  }
+  FB.auth.onAuthStateChanged(function(u){
+    FB.user=u;
+    if(u){escuchar()}
+    else{dejarDeEscuchar();setSync('err','Sin sesión');if(!SHEET_OPEN)openLogin()}
+  });
 }
-function ocupado(){return busy||SHEET_OPEN}
+function docId(id){return encodeURIComponent(String(id))}
+function dejarDeEscuchar(){FB.unsub.forEach(function(f){f()});FB.unsub=[];FB.ready=false;FB.listo={};FB.remU={};FB.subido={}}
+function escuchar(){
+  dejarDeEscuchar();
+  setSync('busy','Conectando…');
+  FCOLS.forEach(function(c){
+    FB.unsub.push(FB.db.collection(c).onSnapshot(function(snap){
+      var arr=[];
+      snap.forEach(function(d){var o=d.data();if(c==='config')o.id=decodeURIComponent(d.id);arr.push(o)});
+      recibir(c,arr);
+    },function(e){
+      if(e&&e.code==='permission-denied'){setSync('err','Sin permiso');toast('Esta cuenta no tiene acceso a los datos de la boda')}
+      else setSync('err','Sin conexión');
+    }));
+  });
+}
+function recibir(c,arr){
+  FB.ultimo[c]=arr;
+  var p={config:{}};
+  arr.forEach(function(o){
+    if(!o||o.id==null)return;
+    FB.remU[c+'/'+o.id]=o.u||0;
+    if(c==='config')p.config[o.id]={v:o.v,u:o.u||0};
+  });
+  if(c!=='config')p[c]=arr.filter(function(o){return o&&o.id!=null});
+  S=mergeStates(S,p);saveLocal();renderAll();
+  FB.listo[c]=true;
+  if(!FB.ready&&FCOLS.every(function(k){return FB.listo[k]})){
+    FB.ready=true;VIRGEN=false;
+    migrarSheet().then(function(migro){
+      return push(true).then(function(){if(migro&&!pendiente)resumenMigracion()});
+    });
+  }
+  if(FB.ready&&!FB.enVuelo&&!pendiente)setSync('on','Al día');
+}
+/* Una sola vez por celular: trae lo que había en el Sheet viejo y lo sube a la nube. */
+function migrarSheet(){
+  if(!CFG.url||CFG.fbMigrado)return Promise.resolve();
+  setSync('busy','Trayendo del Sheet…');
+  return call('pull').then(function(r){
+    if(!r||!r.ok)throw new Error(r&&r.error?r.error:'respuesta rara');
+    S=mergeStates(S,r.state);CFG.fbMigrado=true;saveCfg();saveLocal();renderAll();
+    return true;
+  }).catch(function(){return false});
+}
+function resumenMigracion(){
+  var n=function(c){return list(c).length};
+  var filas=[['Invitados',n('invitados')],['Gastos y cotizaciones',n('pagos')],['Cuotas',n('cuotas')],['Tareas',n('checklist')],
+             ['Momentos del día',n('timeline')],['Ideas',n('ideas')],['Fotos',n('fotos')]];
+  var h='<p style="margin:0 0 14px;color:var(--ink80)">Todo lo que había en el Sheet y en este celular ya está en la nube. El Sheet queda como estaba, de respaldo.</p>'+
+    '<div class="list">'+filas.map(function(f){
+      return '<div class="item"><div class="main"><span class="nm">'+f[0]+'</span></div><b>'+f[1]+'</b></div>';
+    }).join('')+'</div>';
+  if(SHEET_OPEN)toast('Datos pasados a la nube: '+n('invitados')+' invitados, '+n('pagos')+' gastos, '+n('checklist')+' tareas');
+  else sheet('Datos pasados a la nube',h,'<button class="btn block" data-close>Listo</button>');
+}
+function schedulePush(){
+  pendiente=true;
+  clearTimeout(pushTimer);pushTimer=setTimeout(function(){push(true)},300);
+}
+function push(silent){
+  if(!FB.user||!FB.ready){
+    pendiente=true;
+    if(!silent){if(!FB.user)openLogin();else toast('Conectando, esperá un segundo')}
+    return Promise.resolve();
+  }
+  pendiente=false;
+  var ops=[];
+  function quiza(c,id,u,data){
+    var k=c+'/'+id;
+    if(u>(FB.remU[k]||0)&&u>(FB.subido[k]||0)){ops.push({c:c,id:id,k:k,data:data});FB.subido[k]=u}
+  }
+  COLS.forEach(function(c){(S[c]||[]).forEach(function(o){
+    if(o&&o.id!=null&&o.id!=='')quiza(c,o.id,o.u||0,JSON.parse(JSON.stringify(o)));
+  })});
+  Object.keys(S.config||{}).forEach(function(k){
+    var e=S.config[k];if(e)quiza('config',k,e.u||0,{v:e.v===undefined?'':String(e.v),u:e.u||0});
+  });
+  if(!ops.length){if(FB.ready&&!FB.enVuelo)setSync('on','Al día');if(!silent)toast('Ya está todo guardado');return Promise.resolve()}
+  /* Firestore acepta hasta 500 escrituras y ~10 MB por lote: las fotos pesan, así que cortamos por tamaño. */
+  var lotes=[[]],peso=0;
+  ops.forEach(function(op){
+    var t=JSON.stringify(op.data).length;
+    if(lotes[lotes.length-1].length>=400||(peso+t>4e6&&lotes[lotes.length-1].length)){lotes.push([]);peso=0}
+    lotes[lotes.length-1].push(op);peso+=t;
+  });
+  FB.enVuelo++;
+  setSync(navigator.onLine===false?'err':'busy',navigator.onLine===false?'Sin conexión · se guarda al volver':'Guardando…');
+  return Promise.all(lotes.map(function(l){
+    var b=FB.db.batch();
+    l.forEach(function(op){b.set(FB.db.collection(op.c).doc(docId(op.id)),op.data)});
+    return b.commit();
+  })).then(function(){
+    FB.enVuelo--;
+    if(!FB.enVuelo)setSync('on','Guardado '+hhmm(new Date()));
+    if(!silent)toast('Listo, quedó guardado');
+  },function(e){
+    FB.enVuelo--;
+    ops.forEach(function(op){delete FB.subido[op.k]});
+    pendiente=true;setSync('err','Sin guardar');
+    if(!silent)toast('No pude guardar: '+(e&&e.code==='permission-denied'?'esta cuenta no tiene permiso':(e&&e.message)||'error'));
+  });
+}
 function call(action,extra){
   var body=Object.assign({action:action,token:CFG.token||''},extra||{});
   var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
@@ -1335,60 +1136,43 @@ function call(action,extra){
       throw new Error(e&&e.name==='AbortError'?'tardó demasiado, revisá la señal':(e.message||'sin conexión'));
     });
 }
-function push(silent){
-  if(!CFG.url){if(!silent)openAjustes();return Promise.resolve()}
-  /* Nunca subimos datos de fábrica antes de haber leído el Sheet */
-  if(VIRGEN){pendiente=true;return pull(true)}
-  if(busy||(SHEET_OPEN&&silent)){pendiente=true;return Promise.resolve()}
-  busy=true; pendiente=false; setSync('busy','Guardando…');
-  return call('push',{state:{config:S.config,pagos:S.pagos,invitados:S.invitados,checklist:S.checklist,timeline:S.timeline,ideas:S.ideas,fotos:S.fotos,cuotas:S.cuotas}})
-    .then(function(r){
-      if(!r||!r.ok)throw new Error(r&&r.error?r.error:'respuesta rara');
-      S=mergeStates(S,r.state); saveLocal(); renderAll();
-      reintentos=0;
-      setSync('on','Guardado '+hhmm(new Date()));
-      if(!silent)toast('Listo, quedó en el Sheet');
-    })
-    .catch(function(e){
-      pendiente=true; reintentos++;
-      setSync('err','Sin guardar');
-      if(!silent)toast('No pude guardar: '+e.message);
-    })
-    .then(function(){busy=false;liberar()});
+function errAuth(e){
+  var c=e&&e.code||'';
+  if(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c))return 'Mail o contraseña incorrectos';
+  if(/invalid-email/.test(c))return 'Ese mail no es válido';
+  if(/too-many-requests/.test(c))return 'Demasiados intentos. Esperá unos minutos';
+  if(/network-request-failed/.test(c))return 'Sin conexión. Probá de nuevo con señal';
+  if(/user-disabled/.test(c))return 'Esta cuenta está desactivada';
+  return 'No pude entrar ('+(c||'error')+')';
 }
-function pull(silent){
-  if(!CFG.url)return Promise.resolve();
-  if(busy||(SHEET_OPEN&&silent))return Promise.resolve();
-  busy=true; setSync('busy','Sincronizando…');
-  return call('pull')
-    .then(function(r){
-      if(!r||!r.ok)throw new Error(r&&r.error?r.error:'respuesta rara');
-      VIRGEN=false;
-      S=mergeStates(S,r.state); saveLocal(); renderAll();
-      setSync('on',pendiente?'Con cambios sin subir':'Al día · '+hhmm(new Date()));
-      if(!silent)toast('Traído del Sheet');
-    })
-    .catch(function(e){setSync('err','Sin conexión');if(!silent)toast('No pude conectar: '+e.message)})
-    .then(function(){busy=false;liberar()});
+function openLogin(){
+  if(!FB.auth){toast('Sin conexión. Probá de nuevo con señal');return}
+  sheet('Entrar',
+    '<p style="margin:0 0 16px;color:var(--ink80)">Entrá con tu mail y contraseña para que todo lo que carguen se vea al instante en el celular del otro. Se hace una sola vez en cada celular.</p>'+
+    F('Mail','l_mail',CFG.mail||'','email','tu@gmail.com')+
+    F('Contraseña','l_pass','','password')+
+    '<button class="btn ghost block sm" id="l_olvido">Me olvidé la contraseña</button>',
+    '<button class="btn ghost" data-close>Después</button><button class="btn" id="l_ok">Entrar</button>');
+  var m=document.getElementById('l_mail'),p=document.getElementById('l_pass');
+  m.setAttribute('autocomplete','username');p.setAttribute('autocomplete','current-password');
+  function entrar(){
+    var mail=m.value.trim().toLowerCase();
+    if(!mail||!p.value){toast('Completá mail y contraseña');return}
+    var b=document.getElementById('l_ok');b.disabled=true;b.textContent='Entrando…';
+    FB.auth.signInWithEmailAndPassword(mail,p.value).then(function(){
+      CFG.mail=mail;saveCfg();closeSheet();toast('¡Listo! Ya están conectados');
+    },function(e){b.disabled=false;b.textContent='Entrar';toast(errAuth(e))});
+  }
+  document.getElementById('l_ok').onclick=entrar;
+  p.onkeydown=function(e){if(e.key==='Enter')entrar()};
+  document.getElementById('l_olvido').onclick=function(){
+    var mail=m.value.trim().toLowerCase();
+    if(!mail){toast('Escribí tu mail arriba');return}
+    FB.auth.sendPasswordResetEmail(mail).then(function(){toast('Te mandé un mail para elegir una contraseña nueva')},function(e){toast(errAuth(e))});
+  };
 }
-function liberar(){
-  if(!pendiente||!CFG.url||!CFG.auto)return;
-  var espera=Math.min(30000,1500*Math.pow(2,Math.min(reintentos,4)));
-  clearTimeout(pushTimer);
-  pushTimer=setTimeout(function(){if(pendiente)push(true)},espera);
-}
-function startAutoPull(){
-  clearInterval(pullTimer);
-  if(CFG.url&&CFG.auto)pullTimer=setInterval(function(){
-    if(ocupado()||document.visibilityState!=='visible')return;
-    if(pendiente)push(true);else pull(true);
-  },40000);
-}
-document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState!=='visible'||!CFG.url||!CFG.auto||ocupado())return;
-  if(pendiente)push(true);else pull(true);
-});
-window.addEventListener('online',function(){if(pendiente&&!busy)push(true)});
+window.addEventListener('online',function(){if(FB.user){if(pendiente)push(true);else if(FB.enVuelo)setSync('busy','Guardando…')}});
+window.addEventListener('offline',function(){if(FB.user)setSync('err','Sin conexión · se guarda al volver')});
 
 /* iOS: sin zoom por doble tap ni por pellizco (descoloca la barra fija) */
 document.addEventListener('gesturestart',function(e){e.preventDefault()},{passive:false});
@@ -1919,7 +1703,7 @@ function sheet(title,body,footer){
   document.getElementById('scrim').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeSheet(){SHEET_OPEN=false;document.getElementById('scrim').classList.remove('open');document.body.style.overflow='';if(pendiente&&!busy&&CFG.url&&CFG.auto)push(true)}
+function closeSheet(){SHEET_OPEN=false;document.getElementById('scrim').classList.remove('open');document.body.style.overflow='';if(pendiente)push(true)}
 function F(l,id,v,t,ph){return '<div class="f"><label for="'+id+'">'+l+'</label><input class="inp" id="'+id+'" type="'+(t||'text')+'" value="'+esc(v||'')+'" placeholder="'+esc(ph||'')+'"></div>'}
 function Sel(l,id,v,o){return '<div class="f"><label for="'+id+'">'+l+'</label><select class="inp" id="'+id+'">'+o.map(function(x){return '<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>'}).join('')+'</select></div>'}
 function TA(l,id,v){return '<div class="f"><label for="'+id+'">'+l+'</label><textarea class="inp" id="'+id+'">'+esc(v||'')+'</textarea></div>'}
@@ -2225,115 +2009,63 @@ function editIdea(id){
   };
 }
 
-/* ═══════════════ Ajustes y conexión ═══════════════ */
-function pasosHTML(){
-  return '<ol class="steps">'+
-    '<li>Abrí el Sheet <b>Casamiento RyM</b> y andá a <code>Extensiones › Apps Script</code>.</li>'+
-    '<li>Borrá lo que haya, tocá <b>Copiar el código</b> acá abajo y pegalo. Guardá.</li>'+
-    '<li>Arriba elegí la función <code>instalar</code> y tocá <b>Ejecutar</b>. Autorizá con tu cuenta.</li>'+
-    '<li><code>Implementar › Nueva implementación › Aplicación web</code>. Ejecutar como <b>yo</b>, acceso <b>cualquier persona</b>.</li>'+
-    '<li>Copiá la URL que termina en <code>/exec</code> y pegala abajo.</li>'+
-  '</ol>';
-}
+/* ═══════════════ Ajustes y cuenta ═══════════════ */
 function openAjustes(){
-  var gs=document.getElementById('gsCode').textContent;
   sheet('Ajustes',
     '<div class="f2">'+F('Dólar de referencia','c_usd',cfg('usdRate','1510'),'number')+F('Invitados cotizados','c_base',cfg('invitadosBase','200'),'number')+'</div>'+
     '<div class="hr"></div>'+
-    '<div class="upper" style="margin-bottom:10px">Conexión con el Sheet</div>'+
-    (CFG.url?'<div class="note" style="margin-bottom:16px">Conectado. Todo lo que toquen los dos se guarda en el mismo Sheet.</div>':
-              '<div class="note" style="margin-bottom:16px">Sin conectar. Los cambios se guardan sólo en este dispositivo.</div>')+
-    pasosHTML()+
-    '<button class="btn ghost block sm" id="c_copy" style="margin:6px 0 16px">Copiar el código de Apps Script</button>'+
-    F('URL del Web App','c_url',CFG.url,'url','https://script.google.com/macros/s/…/exec')+
-    F('Clave compartida (opcional)','c_tok',CFG.token)+
-    '<button class="switch '+(CFG.auto?'on':'')+'" id="c_auto" style="width:100%;text-align:left;margin-bottom:16px"><span style="flex:1">Sincronizar sola</span><span class="sw"></span></button>'+
-    '<div style="display:flex;gap:10px"><button class="btn ghost sm" id="c_pull" style="flex:1">Traer del Sheet</button><button class="btn gold sm" id="c_push" style="flex:1">Enviar al Sheet</button></div>'+
+    '<div class="upper" style="margin-bottom:10px">Cuenta</div>'+
+    (FB.user?'<div class="note" style="margin-bottom:12px">Conectado como <b>'+esc(FB.user.email)+'</b>. Lo que toque cualquiera de los dos se ve al instante en el otro celular.</div>'+
+             '<button class="btn ghost block sm" id="c_out" style="margin-bottom:16px">Cerrar sesión</button>':
+             '<div class="note" style="margin-bottom:12px">Sin sesión. Los cambios se guardan en este celular y se suben cuando entres.</div>'+
+             '<button class="btn gold block sm" id="c_in" style="margin-bottom:16px">Entrar</button>')+
     '<div class="hr"></div>'+
-    '<div class="upper" style="margin-bottom:10px">Compartir y respaldo</div>'+
-    '<button class="btn ghost block sm" id="c_share" style="margin-bottom:10px">Bajar la app ya conectada (para Mili)</button>'+
-    '<div class="t-cap muted" style="margin-bottom:16px">Descarga este mismo archivo con la conexión adentro. Se lo mandás a Mili, lo abre y ya está: sin configurar nada.</div>'+
+    '<div class="upper" style="margin-bottom:10px">Respaldo</div>'+
     '<div style="display:flex;gap:10px"><button class="btn ghost sm" id="c_exp" style="flex:1">Bajar copia .json</button><button class="btn ghost sm" id="c_imp" style="flex:1">Cargar copia</button></div>'+
     '<input type="file" id="c_file" accept="application/json" hidden>'+
     '<div class="hr"></div>'+
-    '<button class="btn ghost block sm" id="c_reset" style="color:#9e4a63">Volver a los datos originales del Sheet</button>',
+    '<button class="btn ghost block sm" id="c_reset">Volver a cargar todo desde la nube</button>',
     '<button class="btn block" id="c_done">Listo</button>');
 
-  var auto=CFG.auto;
-  document.getElementById('c_auto').onclick=function(){auto=!auto;this.classList.toggle('on',auto)};
-  document.getElementById('c_copy').onclick=function(){copiar(gs,'Código copiado. Pegalo en Apps Script.')};
   function apply(){
-    CFG.url=document.getElementById('c_url').value.trim();
-    CFG.token=document.getElementById('c_tok').value.trim();
-    CFG.auto=auto; if(CFG.url)CFG.onboarded=true;
-    saveCfg();startAutoPull();
     var u=document.getElementById('c_usd').value,b=document.getElementById('c_base').value;
     if(u&&u!==cfg('usdRate'))setCfg('usdRate',u);
     if(b&&b!==cfg('invitadosBase'))setCfg('invitadosBase',b);
-    setSync(CFG.url?'':'', CFG.url?'Conectado':'Guardado acá');
   }
-  document.getElementById('c_pull').onclick=function(){apply();pull(false)};
-  document.getElementById('c_push').onclick=function(){apply();push(false)};
+  var bi=document.getElementById('c_in'),bo=document.getElementById('c_out');
+  if(bi)bi.onclick=function(){apply();closeSheet();openLogin()};
+  if(bo)bo.onclick=function(){
+    if(confirm('¿Cerrar sesión en este celular? Los datos quedan guardados en la nube.')){apply();closeSheet();FB.auth.signOut()}
+  };
   document.getElementById('c_done').onclick=function(){apply();renderAll();closeSheet()};
-  document.getElementById('c_share').onclick=function(){apply();bajarConectada()};
   document.getElementById('c_exp').onclick=function(){
     dl(new Blob([JSON.stringify(S,null,2)],{type:'application/json'}),'mili-rorro-datos.json');
   };
   document.getElementById('c_imp').onclick=function(){document.getElementById('c_file').click()};
   document.getElementById('c_file').onchange=function(ev){
     var f=ev.target.files[0];if(!f)return;var r=new FileReader();
-    r.onload=function(){try{S=mergeStates(S,JSON.parse(r.result));saveLocal();renderAll();closeSheet();toast('Copia cargada')}catch(e){toast('No pude leer el archivo')}};
+    r.onload=function(){try{S=mergeStates(S,JSON.parse(r.result));closeSheet();touched();toast('Copia cargada')}catch(e){toast('No pude leer el archivo')}};
     r.readAsText(f);
   };
   document.getElementById('c_reset').onclick=function(){
-    if(confirm('Esto vuelve todo a los datos originales del Sheet y borra los cambios hechos en la app. ¿Seguro?')){
-      S=seedState();saveLocal();renderAll();closeSheet();toast('Datos restaurados');
+    if(!FB.ready){toast('Primero tiene que estar conectado a la nube');return}
+    if(confirm('Esto descarta lo que hay en este celular y vuelve a bajar todo desde la nube. ¿Seguro?')){
+      S=blank();
+      FCOLS.forEach(function(c){
+        var p={config:{}};
+        (FB.ultimo[c]||[]).forEach(function(o){if(c==='config')p.config[o.id]={v:o.v,u:o.u||0}});
+        if(c!=='config')p[c]=FB.ultimo[c]||[];
+        S=mergeStates(S,p);
+      });
+      saveLocal();renderAll();closeSheet();toast('Listo, todo recargado');
     }
   };
-}
-function copiar(txt,ok){
-  function fallback(){
-    var t=document.createElement('textarea');t.value=txt;t.style.position='fixed';t.style.opacity='0';
-    document.body.appendChild(t);t.select();
-    try{document.execCommand('copy');toast(ok)}catch(e){toast('No pude copiar automáticamente')}
-    document.body.removeChild(t);
-  }
-  if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(txt).then(function(){toast(ok)},fallback);
-  else fallback();
 }
 function dl(blob,name){
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(function(){URL.revokeObjectURL(a.href)},4000);
 }
-function bajarConectada(){
-  if(!CFG.url){toast('Primero pegá la URL del Web App');return}
-  var baked='window.__BAKED__='+JSON.stringify({url:CFG.url,token:CFG.token||''})+';';
-  var html=PRISTINE.replace(/\/\*BAKED\*\/[\s\S]*?\/\*BAKED_END\*\//,'/*BAKED*/'+baked+'/*BAKED_END*/');
-  dl(new Blob([html],{type:'text/html;charset=utf-8'}),'Mili-y-Rorro.html');
-  toast('Listo. Ese archivo ya viene conectado.');
-}
-function openOnboarding(){
-  var gs=document.getElementById('gsCode').textContent;
-  sheet('Bienvenidos',
-    '<div style="text-align:center;margin-bottom:20px"><svg style="width:210px;color:var(--ink)" viewBox="0 0 812.67 342"><use href="#logoFull" width="812.67" height="342"/></svg></div>'+
-    '<p style="margin:0 0 18px;color:var(--ink80)">Acá van a llevar todo: la plata, los invitados, las tareas y el cronograma del día. '+
-    'Funciona igual sin conectar nada, pero si la enganchan al Sheet los dos ven lo mismo al instante.</p>'+
-    '<div class="upper" style="margin-bottom:10px">Conectar el Sheet (una sola vez)</div>'+
-    pasosHTML()+
-    '<button class="btn ghost block sm" id="o_copy" style="margin:6px 0 16px">Copiar el código de Apps Script</button>'+
-    F('URL del Web App','o_url','','url','https://script.google.com/macros/s/…/exec'),
-    '<button class="btn ghost" id="o_later">Después</button><button class="btn" id="o_ok">Conectar</button>');
-  document.getElementById('o_copy').onclick=function(){copiar(gs,'Código copiado. Pegalo en Apps Script.')};
-  document.getElementById('o_later').onclick=function(){CFG.onboarded=true;saveCfg();closeSheet()};
-  document.getElementById('o_ok').onclick=function(){
-    var u=document.getElementById('o_url').value.trim();
-    CFG.onboarded=true;
-    if(u){CFG.url=u;saveCfg();startAutoPull();closeSheet();pull(false)}
-    else{saveCfg();closeSheet();toast('Podés conectarlo después desde el botón de arriba')}
-  };
-}
-
 /* ═══════════════ Navegación y eventos ═══════════════ */
 var SCREEN='inicio', PLAN_VIEW='tareas';
 function go(s){
@@ -2603,7 +2335,11 @@ document.getElementById('btnCur').onclick=function(){
   setCurBtn();renderAll();
   toast(DISP==='USD'?'Viendo todo en dólares':'Viendo todo en pesos');
 };
-document.getElementById('btnSync').onclick=function(){ if(CFG.url&&!busy){pull(false)} else {openAjustes()} };
+document.getElementById('btnSync').onclick=function(){
+  if(!FB.user)openLogin();
+  else if(pendiente)push(false);
+  else toast(FB.ready?'Todo al día':'Conectando…');
+};
 
 /* ═══════════════ Arranque ═══════════════ */
 function boot(){
@@ -2612,12 +2348,11 @@ function boot(){
   migrate();
   renderAll();
   tick();setInterval(tick,60000);
-  if(CFG.url){setSync('','Conectando…');pull(true);startAutoPull()}
-  else if(!CFG.onboarded){setTimeout(openOnboarding,700)}
+  setSync('busy','Conectando…');fbInit();
   window.addEventListener('beforeunload',saveLocal);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
-else{PRISTINE=PRISTINE||('<!DOCTYPE html>\n'+document.documentElement.outerHTML);boot()}
+else boot();
 </script>
 </body>
 </html>
