@@ -539,12 +539,15 @@ input[type=date].inp{padding-right:10px}
   var sp=document.getElementById('splash'),v=document.getElementById('splashVid'),fall=document.getElementById('splashFall');
   var a=document.getElementById('splashMusic'),seal=document.getElementById('splashSeal'),go=document.getElementById('splashGo');
   var done=false,anduvo=false,abierta=false,ctx=null,gan=null;
-  /* "ambient": con el celu en silencio, no suena */
-  try{if(navigator.audioSession)navigator.audioSession.type='ambient'}catch(e){}
+  /* "playback": suena aunque el celu esté en silencio (como un reproductor de música) */
+  var sesion=false;
+  try{if(navigator.audioSession){navigator.audioSession.type='playback';sesion=true}}catch(e){}
   /* iOS no deja cambiar audio.volume: ahí el fade va por Web Audio */
   var volLibre=(function(){try{a.volume=.5;var ok=a.volume===.5;a.volume=1;return ok}catch(e){return false}})();
+  /* Web Audio solo donde hace falta para el fade (iOS) y donde la sesión "playback" lo
+     saca del silencio (iOS 16.4+); en iOS más viejo el audio va directo para que se escuche. */
   function webAudio(){
-    if(volLibre||ctx)return;
+    if(volLibre||ctx||!sesion)return;
     try{
       var AC=window.AudioContext||window.webkitAudioContext;
       ctx=new AC();gan=ctx.createGain();
