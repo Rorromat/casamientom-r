@@ -5,9 +5,30 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.email in ['rorromateus@gmail.com', 'formosamariaemilia@gmail.com'];
     }
+    function texto(d, campo, max) {
+      return !(campo in d) || (d[campo] is string && d[campo].size() <= max);
+    }
     match /{coleccion}/{id} {
       allow read, write: if esDeLaBoda()
         && coleccion in ['pagos', 'invitados', 'checklist', 'timeline', 'ideas', 'fotos', 'cuotas', 'config'];
+    }
+    // Respuestas de la invitación (/invitacion): cualquiera puede mandar la suya,
+    // pero sólo los novios las pueden ver, cambiar o borrar.
+    match /rsvp/{id} {
+      allow read, update, delete: if esDeLaBoda();
+      allow create: if request.resource.data.keys().hasAll(['nombre', 'asiste', 'personas', 'creado'])
+        && request.resource.data.keys().hasOnly(['nombre', 'asiste', 'personas', 'menu', 'restricciones', 'cancion', 'mensaje', 'invitacion', 'creado'])
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() >= 2 && request.resource.data.nombre.size() <= 120
+        && request.resource.data.asiste is bool
+        && request.resource.data.personas is int
+        && request.resource.data.personas >= 0 && request.resource.data.personas <= 12
+        && request.resource.data.creado is timestamp
+        && texto(request.resource.data, 'menu', 200)
+        && texto(request.resource.data, 'restricciones', 300)
+        && texto(request.resource.data, 'cancion', 160)
+        && texto(request.resource.data, 'mensaje', 1000)
+        && texto(request.resource.data, 'invitacion', 80);
     }
   }
 }
