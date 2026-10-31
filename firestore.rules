@@ -30,5 +30,17 @@ service cloud.firestore {
         && texto(request.resource.data, 'mensaje', 1000)
         && texto(request.resource.data, 'invitacion', 80);
     }
+    // Ranking del juego de la invitación: todos lo ven y cualquiera suma su puntaje.
+    match /puntajes/{id} {
+      allow read: if true;
+      allow update, delete: if esDeLaBoda();
+      allow create: if request.resource.data.keys().hasOnly(['nombre', 'puntos', 'creado'])
+        && request.resource.data.keys().hasAll(['nombre', 'puntos', 'creado'])
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() >= 1 && request.resource.data.nombre.size() <= 40
+        && request.resource.data.puntos is int
+        && request.resource.data.puntos >= 0 && request.resource.data.puntos <= 3000
+        && request.resource.data.creado is timestamp;
+    }
   }
 }
